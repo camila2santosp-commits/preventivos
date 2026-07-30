@@ -3606,13 +3606,11 @@
             fitPreventivoPreview();
         }
 
-        // El preventivo está diseñado a un ancho fijo de 720px (el mismo truco que usa el
-        // archivo exportado con <meta name="viewport" content="width=720">, que hace que el
-        // celular lo achique entero al abrirlo). Acá, como es contenido embebido dentro de la
-        // propia app (no un documento aparte), no existe ese truco de viewport — por eso, sin
-        // esto, en un celular el preview quedaba apretado contra su contenedor angosto y los
-        // chips de MD se cortaban. Se resuelve igual, con "zoom" (a diferencia de transform,
-        // zoom sí vuelve a acomodar el alto del contenedor, sin dejar espacio en blanco de más).
+        // El preventivo está diseñado a un ancho fijo de 720px. En el archivo exportado esto se
+        // resuelve con puro CSS (zoom: min(1, 100vw/720) sobre .preventivo-root, ver exportHTML).
+        // Acá, como esto es contenido embebido DENTRO de la propia app (dentro del sidebar/card,
+        // no a todo el ancho de la pantalla), 100vw no sirve — el ancho real disponible es el del
+        // contenedor #pdfContent, no el de la ventana. Por eso acá se mide con JS y no con CSS puro.
         function fitPreventivoPreview() {
             const container = document.getElementById('pdfContent');
             const root = container ? container.querySelector('.preventivo-root') : null;
@@ -3644,7 +3642,16 @@
                 // El primer Match Day ya queda marcado "checked" en el radio desde que se generó
                 // (ver generatePreventivo()), así que no hace falta tocar nada acá antes de exportar:
                 // el cambio de día funciona con HTML/CSS puro, sin depender de que el JS corra.
+                //
+                // El zoom que fitPreventivoPreview() aplica es SOLO para que la vista previa
+                // encaje dentro de la tarjeta en la app; el archivo exportado tiene su propio
+                // ancho de pantalla completo y no debe heredar ese zoom, así que lo sacamos
+                // del root antes de leer innerHTML y lo restauramos después.
+                const previewRoot = element.querySelector('.preventivo-root');
+                const previewZoom = previewRoot ? previewRoot.style.zoom : '';
+                if (previewRoot) previewRoot.style.zoom = '';
                 const contentHTML = element.innerHTML;
+                if (previewRoot) previewRoot.style.zoom = previewZoom;
 
                 const fullHTML = `<!DOCTYPE html>
 <html lang="es">
@@ -3680,6 +3687,11 @@
     html { -webkit-text-size-adjust: 100%; background: #F2F3F5; height: 100%; }
     body { margin: 0; padding: 0; background: #F2F3F5; min-height: 100%; }
     a { cursor: pointer; }
+    /* El diseño del preventivo es de ancho fijo 720px: el <meta name="viewport" content=
+       "width=720"> de arriba hace que el celular renderice esta página como si el ancho
+       fuera 720px y después la achique entera para que entre en la pantalla real — sin
+       necesidad de ningún JavaScript (funciona igual en Safari, Chrome o en la vista
+       rápida de iOS/Quick Look). */
     .video-card { width: 82px; transition: transform 0.2s ease; }
     .video-card:hover { transform: translateY(-3px); }
     .video-card:hover img { box-shadow: 0 6px 14px rgba(10,30,77,0.18) !important; }
@@ -3714,6 +3726,19 @@
         border: none !important;
         box-shadow: 0 2px 6px -2px rgba(0,20,60,0.4) !important;
     }
+
+    /* Achica el diseño de 720px a pantallas angostas SIN reflow (misma fila de 8 MD,
+       mismo diseño que en la web, solo más chico) y SIN depender de que el visor
+       respete el <meta name="viewport">: iOS Quick Look, por ejemplo, lo ignora y
+       renderiza al ancho real del dispositivo. Por eso el achique va acá, con
+       "zoom" y valores fijos por rango de ancho real (nada de calc()/vw, que
+       tampoco anda de forma confiable en Quick Look). Cada rango usa el ancho
+       más angosto que puede caer ahí, así nunca se corta contenido. */
+    @media (max-width: 340px) { .preventivo-root { zoom: 0.44; } }
+    @media (min-width: 341px) and (max-width: 375px) { .preventivo-root { zoom: 0.47; } }
+    @media (min-width: 376px) and (max-width: 400px) { .preventivo-root { zoom: 0.52; } }
+    @media (min-width: 401px) and (max-width: 428px) { .preventivo-root { zoom: 0.55; } }
+    @media (min-width: 429px) and (max-width: 715px) { .preventivo-root { zoom: 0.59; } }
 </style>
 </head>
 <body>
